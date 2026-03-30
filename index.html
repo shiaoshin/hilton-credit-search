@@ -399,6 +399,28 @@
 
   .empty-state .big { font-size: 32px; margin-bottom: 10px; }
 
+  .btn-location {
+    background: transparent;
+    color: var(--blue);
+    border-color: rgba(91,156,246,0.4);
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+  .btn-location:hover { background: rgba(91,156,246,0.1); border-color: var(--blue); }
+
+  .disclaimer {
+    margin-top: 20px;
+    padding: 14px 18px;
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-left: 3px solid var(--accent);
+    border-radius: 4px;
+    font-size: 12px;
+    color: var(--text2);
+    line-height: 1.6;
+  }
+  .disclaimer strong { color: var(--accent); }
+
   /* Scrollbar */
   ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
@@ -421,8 +443,7 @@
   </header>
 
   <div class="stats-bar" id="statsBar">
-    <div class="stat"><div class="stat-val" id="statTotal">—</div><div class="stat-lbl">Total Records</div></div>
-    <div class="stat"><div class="stat-val" id="statFiltered">—</div><div class="stat-lbl">Showing</div></div>
+    <div class="stat"><div class="stat-val" id="statRecords">—</div><div class="stat-lbl">Records</div></div>
     <div class="stat"><div class="stat-val" id="statCities">—</div><div class="stat-lbl">Cities</div></div>
     <div class="stat"><div class="stat-val" id="statHotels">—</div><div class="stat-lbl">Hotels</div></div>
     <div class="stat"><div class="stat-val" id="statCards">—</div><div class="stat-lbl">Cards</div></div>
@@ -431,6 +452,11 @@
   <div class="filters-panel">
     <div class="filters-label">// FILTERS</div>
     <div class="filters-grid">
+
+      <div class="filter-group">
+        <label>STATE / REGION</label>
+        <select id="fState" onchange="onStateChange()"><option value="">All States</option></select>
+      </div>
 
       <div class="filter-group">
         <label>CITY</label>
@@ -460,6 +486,7 @@
       <div class="filter-actions">
         <button class="btn btn-primary" onclick="applyFilters()">APPLY</button>
         <button class="btn btn-ghost" onclick="resetFilters()">RESET</button>
+        <button class="btn btn-location" onclick="useMyLocation()" title="Filter by my location">📍 NEAR ME</button>
       </div>
 
     </div>
@@ -469,6 +496,8 @@
     <div class="result-count">Showing <span id="countDisplay">0</span> results</div>
     <div class="sort-info" id="sortInfo">SORTED BY: CONFIDENCE ↓</div>
   </div>
+
+  <div id="locationStatus" style="display:none;font-family:var(--mono);font-size:11px;color:var(--text3);margin-bottom:8px;"></div>
 
   <div class="table-wrap">
     <table id="dataTable">
@@ -487,6 +516,14 @@
         <tr><td colspan="7"><div class="empty-state"><div class="big">⏳</div>Loading data…</div></td></tr>
       </tbody>
     </table>
+  </div>
+
+  <div class="disclaimer">
+    <strong>YMMV</strong> — Data is crowd-sourced from Reddit, FlyerTalk, and community spreadsheets.
+    Accuracy is not guaranteed; always verify with the property directly.
+    <br>
+    <strong>Cards:</strong> Hilton Honors Surpass = Amex Hilton Honors Surpass Card · Aspire = Amex Hilton Honors Aspire Card.
+    Amex Business Platinum hotel credits may also apply at participating Hilton properties.
   </div>
 
 </div>
@@ -510,6 +547,7 @@
   function getVenue(r)      { return field(r, 'venue_name', 'venue', 'Venue Name', 'Venue'); }
   function getHotel(r)      { return field(r, 'hotel_name', 'hotel', 'Hotel Name', 'Hotel', 'property_name', 'property'); }
   function getCity(r)       { return field(r, 'city', 'City', 'location', 'Location'); }
+  function getState(r)      { return field(r, 'state_province', 'state', 'State', 'region', 'Region'); }
   function getAmount(r)     { return field(r, 'credit_amount', 'amount', 'Credit Amount', 'Amount', 'credit'); }
   function getCreditType(r) { return field(r, 'credit_type', 'type', 'Credit Type', 'Type', 'category', 'Category'); }
   function getCard(r)       { return field(r, 'card_name', 'card', 'Card Name', 'Card', 'card_type', 'amex_card'); }
@@ -527,18 +565,22 @@
       let json = await res.json();
 
       // Normalize: accept array or {data: [...]} wrapper
+      let raw;
       if (Array.isArray(json)) {
-        allData = json;
+        raw = json;
       } else if (json.data && Array.isArray(json.data)) {
-        allData = json.data;
+        raw = json.data;
       } else {
-        // Try to find first array value
         const arr = Object.values(json).find(v => Array.isArray(v));
-        allData = arr || [];
+        raw = arr || [];
       }
+      // Exclude Hilton Honors (no-fee card) — it doesn't offer property credits
+      allData = raw.filter(r => {
+        const card = getCard(r).toLowerCase();
+        return card !== 'hilton honors';
+      });
 
       populateDropdowns();
-      updateStats();
       applyFilters();
 
       document.getElementById('statusDot').className = 'status-dot';
@@ -554,13 +596,24 @@
   function populateDropdowns() {
     const unique = (fn) => [...new Set(allData.map(fn).filter(Boolean))].sort();
 
+    const states = unique(getState);
     const cities = unique(getCity);
     const cards  = unique(getCard);
     const types  = unique(getCreditType);
 
+    fillSelect('fState', states);
     fillSelect('fCity', cities);
     fillSelect('fCard', cards);
     fillSelect('fCreditType', types);
+  }
+
+  function onStateChange() {
+    const state = document.getElementById('fState').value;
+    const cities = state
+      ? [...new Set(allData.filter(r => getState(r) === state).map(getCity).filter(Boolean))].sort()
+      : [...new Set(allData.map(getCity).filter(Boolean))].sort();
+    fillSelect('fCity', cities);
+    applyFilters();
   }
 
   function fillSelect(id, values) {
@@ -576,13 +629,21 @@
   }
 
   function updateStats() {
-    document.getElementById('statTotal').textContent = allData.length.toLocaleString();
+    const total = allData.length;
+    const showing = filtered.length;
+    const recEl = document.getElementById('statRecords');
+    if (showing !== total) {
+      recEl.innerHTML = showing.toLocaleString() + '<span style="color:var(--text3);font-size:14px"> / ' + total.toLocaleString() + '</span>';
+    } else {
+      recEl.textContent = total.toLocaleString();
+    }
     document.getElementById('statCities').textContent = new Set(allData.map(getCity).filter(Boolean)).size;
     document.getElementById('statHotels').textContent = new Set(allData.map(getHotel).filter(Boolean)).size;
     document.getElementById('statCards').textContent  = new Set(allData.map(getCard).filter(Boolean)).size;
   }
 
   function applyFilters() {
+    const state   = document.getElementById('fState').value;
     const city    = document.getElementById('fCity').value.toLowerCase();
     const card    = document.getElementById('fCard').value.toLowerCase();
     const ctype   = document.getElementById('fCreditType').value.toLowerCase();
@@ -590,6 +651,7 @@
     const venue   = document.getElementById('fVenue').value.toLowerCase().trim();
 
     filtered = allData.filter(r => {
+      if (state && getState(r) !== state) return false;
       if (city  && getCity(r).toLowerCase() !== city)  return false;
       if (card  && getCard(r).toLowerCase() !== card)  return false;
       if (ctype && getCreditType(r).toLowerCase() !== ctype) return false;
@@ -600,7 +662,7 @@
 
     sortData();
     renderTable();
-    document.getElementById('statFiltered').textContent = filtered.length.toLocaleString();
+    updateStats();
     document.getElementById('countDisplay').textContent = filtered.length.toLocaleString();
   }
 
@@ -617,12 +679,55 @@
   });
 
   function resetFilters() {
-    document.getElementById('fCity').value = '';
-    document.getElementById('fCard').value = '';
-    document.getElementById('fCreditType').value = '';
-    document.getElementById('fHotel').value = '';
-    document.getElementById('fVenue').value = '';
-    applyFilters();
+    document.getElementById('fState').value = '';
+    onStateChange(); // repopulate cities to all, then applyFilters inside
+  }
+
+  async function useMyLocation() {
+    if (!navigator.geolocation) {
+      alert('Geolocation is not supported by your browser.');
+      return;
+    }
+    const statusEl = document.getElementById('locationStatus');
+    statusEl.style.display = 'block';
+    statusEl.textContent = '📍 Detecting location…';
+    navigator.geolocation.getCurrentPosition(async pos => {
+      try {
+        const { latitude: lat, longitude: lon } = pos.coords;
+        const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`;
+        const res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
+        const geo = await res.json();
+        const addr = geo.address || {};
+        const geoState = addr.state || '';
+        const geoCity  = addr.city || addr.town || addr.village || addr.county || '';
+
+        // Try to match state in dropdown
+        const stateSel = document.getElementById('fState');
+        const matchedState = [...stateSel.options].find(o =>
+          o.value && geoState.toLowerCase().includes(o.value.toLowerCase())
+        );
+        if (matchedState) {
+          stateSel.value = matchedState.value;
+          // Repopulate cities for this state
+          const cities = [...new Set(allData.filter(r => getState(r) === matchedState.value).map(getCity).filter(Boolean))].sort();
+          fillSelect('fCity', cities);
+          // Try to match city
+          const citySel = document.getElementById('fCity');
+          const matchedCity = [...citySel.options].find(o =>
+            o.value && geoCity.toLowerCase().includes(o.value.toLowerCase())
+          );
+          if (matchedCity) citySel.value = matchedCity.value;
+          statusEl.textContent = `📍 ${matchedCity ? matchedCity.value + ', ' : ''}${matchedState.value}`;
+        } else {
+          statusEl.textContent = `📍 No match found for "${geoState}" — showing all`;
+        }
+        applyFilters();
+      } catch (e) {
+        statusEl.textContent = '📍 Location lookup failed: ' + e.message;
+      }
+    }, err => {
+      statusEl.textContent = '📍 ' + (err.code === 1 ? 'Location access denied' : 'Could not get location');
+    });
   }
 
   function sortBy(col) {
