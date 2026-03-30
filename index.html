@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hilton Amex · Credit Data Explorer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0c10;
+    --surface: #10141c;
+    --surface2: #161b26;
+    --border: #1e2535;
+    --border2: #2a3347;
+    --accent: #d4a843;
+    --accent2: #e8c47a;
+    --text: #e2e8f0;
+    --text2: #8899b0;
+    --text3: #4a5a70;
+    --green: #3ecf8e;
+    --red: #f06878;
+    --blue: #5b9cf6;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'DM Sans', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Subtle grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 40px 40px;
+    opacity: 0.3;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrapper {
+    position: relative;
+    z-index: 1;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 32px 24px;
+  }
+
+  /* Header */
+  header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    margin-bottom: 32px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--border2);
+  }
+
+  .logo-block h1 {
+    font-family: var(--mono);
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.5px;
+    color: var(--text);
+  }
+
+  .logo-block h1 span {
+    color: var(--accent);
+  }
+
+  .logo-block p {
+    font-size: 12px;
+    color: var(--text3);
+    font-family: var(--mono);
+    margin-top: 4px;
+    letter-spacing: 0.5px;
+  }
+
+  .status-pill {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text3);
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: 4px;
+    padding: 6px 12px;
+  }
+
+  .status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 6px var(--green);
+    animation: pulse 2s infinite;
+  }
+
+  .status-dot.loading { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+  .status-dot.error { background: var(--red); box-shadow: 0 0 6px var(--red); }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  /* Stats bar */
+  .stats-bar {
+    display: flex;
+    gap: 2px;
+    margin-bottom: 20px;
+  }
+
+  .stat {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 12px 16px;
+    border-radius: 0;
+  }
+  .stat:first-child { border-radius: 6px 0 0 6px; }
+  .stat:last-child { border-radius: 0 6px 6px 0; }
+
+  .stat-val {
+    font-family: var(--mono);
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--accent);
+    line-height: 1;
+  }
+
+  .stat-lbl {
+    font-size: 11px;
+    color: var(--text3);
+    margin-top: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+  }
+
+  /* Filters */
+  .filters-panel {
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+
+  .filters-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-bottom: 14px;
+  }
+
+  .filters-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 10px;
+    align-items: end;
+  }
+
+  .filter-group { display: flex; flex-direction: column; gap: 5px; }
+
+  .filter-group label {
+    font-size: 11px;
+    color: var(--text2);
+    font-family: var(--mono);
+    letter-spacing: 0.3px;
+  }
+
+  .filter-group input,
+  .filter-group select {
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 13px;
+    padding: 8px 10px;
+    border-radius: 4px;
+    outline: none;
+    transition: border-color 0.15s;
+    width: 100%;
+  }
+
+  .filter-group input:focus,
+  .filter-group select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(212,168,67,0.12);
+  }
+
+  .filter-group select option { background: var(--surface2); }
+
+  .filter-actions {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+  }
+
+  .btn {
+    padding: 8px 16px;
+    border-radius: 4px;
+    border: 1px solid var(--border2);
+    font-family: var(--mono);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #0a0c10;
+    border-color: var(--accent);
+    font-weight: 600;
+  }
+  .btn-primary:hover { background: var(--accent2); border-color: var(--accent2); }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--text2);
+  }
+  .btn-ghost:hover { background: var(--surface2); color: var(--text); border-color: var(--text3); }
+
+  /* Table area */
+  .table-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+
+  .result-count {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text3);
+  }
+
+  .result-count span { color: var(--accent); }
+
+  .sort-info {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text3);
+  }
+
+  .table-wrap {
+    border: 1px solid var(--border2);
+    border-radius: 8px;
+    overflow: hidden;
+    overflow-x: auto;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  thead {
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border2);
+  }
+
+  th {
+    padding: 11px 14px;
+    text-align: left;
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+    transition: color 0.15s;
+  }
+
+  th:hover { color: var(--text2); }
+  th.active { color: var(--accent); }
+
+  th .sort-arrow {
+    display: inline-block;
+    margin-left: 5px;
+    font-size: 10px;
+    opacity: 0.5;
+  }
+
+  th.active .sort-arrow { opacity: 1; color: var(--accent); }
+
+  tbody tr {
+    border-bottom: 1px solid var(--border);
+    transition: background 0.1s;
+  }
+
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: rgba(255,255,255,0.025); }
+
+  td {
+    padding: 11px 14px;
+    vertical-align: middle;
+    color: var(--text);
+    max-width: 240px;
+  }
+
+  .td-venue { font-weight: 500; }
+  .td-hotel { color: var(--text2); font-size: 12px; }
+  .td-city {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text2);
+  }
+
+  .td-amount {
+    font-family: var(--mono);
+    font-weight: 600;
+    color: var(--green);
+    font-size: 14px;
+    white-space: nowrap;
+  }
+
+  .td-card {
+    font-size: 12px;
+    color: var(--text2);
+    max-width: 180px;
+  }
+
+  .confidence-bar-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 110px;
+  }
+
+  .confidence-bar {
+    flex: 1;
+    height: 4px;
+    background: var(--border2);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .confidence-fill {
+    height: 100%;
+    border-radius: 2px;
+    background: var(--green);
+    transition: width 0.3s;
+  }
+
+  .confidence-pct {
+    font-family: var(--mono);
+    font-size: 12px;
+    min-width: 36px;
+    text-align: right;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 8px;
+    border-radius: 3px;
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 500;
+    white-space: nowrap;
+    border: 1px solid;
+  }
+
+  .badge-blue { color: var(--blue); border-color: rgba(91,156,246,0.3); background: rgba(91,156,246,0.08); }
+  .badge-gold { color: var(--accent); border-color: rgba(212,168,67,0.3); background: rgba(212,168,67,0.08); }
+  .badge-green { color: var(--green); border-color: rgba(62,207,142,0.3); background: rgba(62,207,142,0.08); }
+  .badge-gray { color: var(--text2); border-color: var(--border2); background: var(--surface2); }
+
+  /* Empty / loading state */
+  .empty-state {
+    padding: 60px 20px;
+    text-align: center;
+    color: var(--text3);
+    font-family: var(--mono);
+    font-size: 13px;
+  }
+
+  .empty-state .big { font-size: 32px; margin-bottom: 10px; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text3); }
+</style>
+</head>
+<body>
+<div class="wrapper">
+
+  <header>
+    <div class="logo-block">
+      <h1>HILTON <span>AMEX</span> · CREDIT EXPLORER</h1>
+      <p>PROPERTY &amp; VENUE CREDIT INTELLIGENCE</p>
+    </div>
+    <div class="status-pill">
+      <div class="status-dot loading" id="statusDot"></div>
+      <span id="statusText">LOADING DATA…</span>
+    </div>
+  </header>
+
+  <div class="stats-bar" id="statsBar">
+    <div class="stat"><div class="stat-val" id="statTotal">—</div><div class="stat-lbl">Total Records</div></div>
+    <div class="stat"><div class="stat-val" id="statFiltered">—</div><div class="stat-lbl">Showing</div></div>
+    <div class="stat"><div class="stat-val" id="statCities">—</div><div class="stat-lbl">Cities</div></div>
+    <div class="stat"><div class="stat-val" id="statHotels">—</div><div class="stat-lbl">Hotels</div></div>
+    <div class="stat"><div class="stat-val" id="statCards">—</div><div class="stat-lbl">Cards</div></div>
+  </div>
+
+  <div class="filters-panel">
+    <div class="filters-label">// FILTERS</div>
+    <div class="filters-grid">
+
+      <div class="filter-group">
+        <label>CITY</label>
+        <select id="fCity"><option value="">All Cities</option></select>
+      </div>
+
+      <div class="filter-group">
+        <label>CARD</label>
+        <select id="fCard"><option value="">All Cards</option></select>
+      </div>
+
+      <div class="filter-group">
+        <label>CREDIT TYPE</label>
+        <select id="fCreditType"><option value="">All Types</option></select>
+      </div>
+
+      <div class="filter-group">
+        <label>HOTEL NAME</label>
+        <input type="text" id="fHotel" placeholder="Search hotels…">
+      </div>
+
+      <div class="filter-group">
+        <label>VENUE NAME</label>
+        <input type="text" id="fVenue" placeholder="Search venues…">
+      </div>
+
+      <div class="filter-actions">
+        <button class="btn btn-primary" onclick="applyFilters()">APPLY</button>
+        <button class="btn btn-ghost" onclick="resetFilters()">RESET</button>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="table-header">
+    <div class="result-count">Showing <span id="countDisplay">0</span> results</div>
+    <div class="sort-info" id="sortInfo">SORTED BY: CONFIDENCE ↓</div>
+  </div>
+
+  <div class="table-wrap">
+    <table id="dataTable">
+      <thead>
+        <tr>
+          <th onclick="sortBy('venue')" id="th-venue">VENUE <span class="sort-arrow">↕</span></th>
+          <th onclick="sortBy('hotel')" id="th-hotel">HOTEL <span class="sort-arrow">↕</span></th>
+          <th onclick="sortBy('city')" id="th-city">CITY <span class="sort-arrow">↕</span></th>
+          <th onclick="sortBy('credit_amount')" id="th-credit_amount">CREDIT <span class="sort-arrow">↕</span></th>
+          <th onclick="sortBy('credit_type')" id="th-credit_type">TYPE <span class="sort-arrow">↕</span></th>
+          <th onclick="sortBy('card')" id="th-card">CARD <span class="sort-arrow">↕</span></th>
+          <th onclick="sortBy('confidence')" id="th-confidence" class="active">CONFIDENCE <span class="sort-arrow">↓</span></th>
+        </tr>
+      </thead>
+      <tbody id="tableBody">
+        <tr><td colspan="7"><div class="empty-state"><div class="big">⏳</div>Loading data…</div></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+<script>
+  const DATA_URL = 'https://gist.githubusercontent.com/shiaoshin/0b8cbe435a6d6cf830e030150a63fef2/raw/hilton_credit_dps.json';
+
+  let allData = [];
+  let filtered = [];
+  let sortCol = 'confidence';
+  let sortDir = 'desc';
+
+  // Field name resolver — handles various key formats in the JSON
+  function field(row, ...keys) {
+    for (const k of keys) {
+      if (row[k] !== undefined && row[k] !== null && row[k] !== '') return row[k];
+    }
+    return '';
+  }
+
+  function getVenue(r)      { return field(r, 'venue_name', 'venue', 'Venue Name', 'Venue'); }
+  function getHotel(r)      { return field(r, 'hotel_name', 'hotel', 'Hotel Name', 'Hotel', 'property_name', 'property'); }
+  function getCity(r)       { return field(r, 'city', 'City', 'location', 'Location'); }
+  function getAmount(r)     { return field(r, 'credit_amount', 'amount', 'Credit Amount', 'Amount', 'credit'); }
+  function getCreditType(r) { return field(r, 'credit_type', 'type', 'Credit Type', 'Type', 'category', 'Category'); }
+  function getCard(r)       { return field(r, 'card_name', 'card', 'Card Name', 'Card', 'card_type', 'amex_card'); }
+  function getConfidence(r) {
+    let v = field(r, 'confidence', 'Confidence', 'confidence_score', 'score');
+    if (v === '') return 0;
+    const n = parseFloat(v);
+    return isNaN(n) ? 0 : n;
+  }
+
+  async function loadData() {
+    try {
+      const res = await fetch(DATA_URL);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      let json = await res.json();
+
+      // Normalize: accept array or {data: [...]} wrapper
+      if (Array.isArray(json)) {
+        allData = json;
+      } else if (json.data && Array.isArray(json.data)) {
+        allData = json.data;
+      } else {
+        // Try to find first array value
+        const arr = Object.values(json).find(v => Array.isArray(v));
+        allData = arr || [];
+      }
+
+      populateDropdowns();
+      updateStats();
+      applyFilters();
+
+      document.getElementById('statusDot').className = 'status-dot';
+      document.getElementById('statusText').textContent = 'LIVE · ' + new Date().toLocaleTimeString();
+    } catch (e) {
+      document.getElementById('statusDot').className = 'status-dot error';
+      document.getElementById('statusText').textContent = 'ERROR: ' + e.message;
+      document.getElementById('tableBody').innerHTML =
+        `<tr><td colspan="7"><div class="empty-state"><div class="big">⚠️</div>Failed to load: ${e.message}</div></td></tr>`;
+    }
+  }
+
+  function populateDropdowns() {
+    const unique = (fn) => [...new Set(allData.map(fn).filter(Boolean))].sort();
+
+    const cities = unique(getCity);
+    const cards  = unique(getCard);
+    const types  = unique(getCreditType);
+
+    fillSelect('fCity', cities);
+    fillSelect('fCard', cards);
+    fillSelect('fCreditType', types);
+  }
+
+  function fillSelect(id, values) {
+    const sel = document.getElementById(id);
+    const first = sel.options[0];
+    sel.innerHTML = '';
+    sel.appendChild(first);
+    values.forEach(v => {
+      const o = document.createElement('option');
+      o.value = v; o.textContent = v;
+      sel.appendChild(o);
+    });
+  }
+
+  function updateStats() {
+    document.getElementById('statTotal').textContent = allData.length.toLocaleString();
+    document.getElementById('statCities').textContent = new Set(allData.map(getCity).filter(Boolean)).size;
+    document.getElementById('statHotels').textContent = new Set(allData.map(getHotel).filter(Boolean)).size;
+    document.getElementById('statCards').textContent  = new Set(allData.map(getCard).filter(Boolean)).size;
+  }
+
+  function applyFilters() {
+    const city    = document.getElementById('fCity').value.toLowerCase();
+    const card    = document.getElementById('fCard').value.toLowerCase();
+    const ctype   = document.getElementById('fCreditType').value.toLowerCase();
+    const hotel   = document.getElementById('fHotel').value.toLowerCase().trim();
+    const venue   = document.getElementById('fVenue').value.toLowerCase().trim();
+
+    filtered = allData.filter(r => {
+      if (city  && getCity(r).toLowerCase() !== city)  return false;
+      if (card  && getCard(r).toLowerCase() !== card)  return false;
+      if (ctype && getCreditType(r).toLowerCase() !== ctype) return false;
+      if (hotel && !getHotel(r).toLowerCase().includes(hotel)) return false;
+      if (venue && !getVenue(r).toLowerCase().includes(venue)) return false;
+      return true;
+    });
+
+    sortData();
+    renderTable();
+    document.getElementById('statFiltered').textContent = filtered.length.toLocaleString();
+    document.getElementById('countDisplay').textContent = filtered.length.toLocaleString();
+  }
+
+  // Enter key on text inputs
+  document.addEventListener('DOMContentLoaded', () => {
+    ['fHotel','fVenue'].forEach(id => {
+      document.getElementById(id).addEventListener('keydown', e => {
+        if (e.key === 'Enter') applyFilters();
+      });
+    });
+    ['fCity','fCard','fCreditType'].forEach(id => {
+      document.getElementById(id).addEventListener('change', applyFilters);
+    });
+  });
+
+  function resetFilters() {
+    document.getElementById('fCity').value = '';
+    document.getElementById('fCard').value = '';
+    document.getElementById('fCreditType').value = '';
+    document.getElementById('fHotel').value = '';
+    document.getElementById('fVenue').value = '';
+    applyFilters();
+  }
+
+  function sortBy(col) {
+    if (sortCol === col) {
+      sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+      sortCol = col;
+      sortDir = col === 'confidence' || col === 'credit_amount' ? 'desc' : 'asc';
+    }
+    sortData();
+    renderTable();
+    updateSortHeaders();
+  }
+
+  function sortData() {
+    const getVal = {
+      venue: getVenue, hotel: getHotel, city: getCity,
+      credit_amount: r => {
+        const v = getAmount(r);
+        const n = parseFloat(String(v).replace(/[^0-9.-]/g, ''));
+        return isNaN(n) ? 0 : n;
+      },
+      credit_type: getCreditType, card: getCard,
+      confidence: getConfidence
+    }[sortCol] || (r => '');
+
+    filtered.sort((a, b) => {
+      let va = getVal(a), vb = getVal(b);
+      if (typeof va === 'number') {
+        return sortDir === 'asc' ? va - vb : vb - va;
+      }
+      va = String(va).toLowerCase();
+      vb = String(vb).toLowerCase();
+      const c = va.localeCompare(vb);
+      return sortDir === 'asc' ? c : -c;
+    });
+  }
+
+  function updateSortHeaders() {
+    document.querySelectorAll('th').forEach(th => {
+      th.classList.remove('active');
+      th.querySelector('.sort-arrow').textContent = '↕';
+    });
+    const th = document.getElementById('th-' + sortCol);
+    if (th) {
+      th.classList.add('active');
+      th.querySelector('.sort-arrow').textContent = sortDir === 'asc' ? '↑' : '↓';
+    }
+    document.getElementById('sortInfo').textContent =
+      `SORTED BY: ${sortCol.replace('_',' ').toUpperCase()} ${sortDir === 'asc' ? '↑' : '↓'}`;
+  }
+
+  function confidenceColor(pct) {
+    if (pct >= 80) return 'var(--green)';
+    if (pct >= 60) return 'var(--accent)';
+    if (pct >= 40) return 'var(--blue)';
+    return 'var(--red)';
+  }
+
+  function badgeForType(type) {
+    if (!type) return '';
+    const t = type.toLowerCase();
+    if (t.includes('dining') || t.includes('food') || t.includes('restaurant')) return 'badge-gold';
+    if (t.includes('spa') || t.includes('resort') || t.includes('leisure')) return 'badge-green';
+    if (t.includes('hotel') || t.includes('property') || t.includes('stay')) return 'badge-blue';
+    return 'badge-gray';
+  }
+
+  function formatAmount(val) {
+    if (!val && val !== 0) return '—';
+    const s = String(val).trim();
+    if (s.startsWith('$')) return s;
+    const n = parseFloat(s.replace(/[^0-9.-]/g, ''));
+    if (isNaN(n)) return s || '—';
+    return '$' + n.toLocaleString();
+  }
+
+  function renderTable() {
+    const tbody = document.getElementById('tableBody');
+    if (filtered.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="big">🔍</div>No matching records</div></td></tr>`;
+      return;
+    }
+
+    const rows = filtered.map(r => {
+      const conf    = getConfidence(r);
+      const pct     = conf > 1 ? conf : Math.round(conf * 100);
+      const barW    = Math.min(pct, 100);
+      const fillClr = confidenceColor(pct);
+      const typeStr = getCreditType(r);
+      const badge   = badgeForType(typeStr);
+
+      return `<tr>
+        <td class="td-venue">${esc(getVenue(r)) || '<span style="color:var(--text3)">—</span>'}</td>
+        <td class="td-hotel">${esc(getHotel(r)) || '<span style="color:var(--text3)">—</span>'}</td>
+        <td class="td-city">${esc(getCity(r)) || '<span style="color:var(--text3)">—</span>'}</td>
+        <td class="td-amount">${formatAmount(getAmount(r))}</td>
+        <td>${typeStr ? `<span class="badge ${badge}">${esc(typeStr)}</span>` : '<span style="color:var(--text3)">—</span>'}</td>
+        <td class="td-card">${esc(getCard(r)) || '<span style="color:var(--text3)">—</span>'}</td>
+        <td>
+          <div class="confidence-bar-wrap">
+            <div class="confidence-bar">
+              <div class="confidence-fill" style="width:${barW}%;background:${fillClr}"></div>
+            </div>
+            <span class="confidence-pct" style="color:${fillClr}">${pct}%</span>
+          </div>
+        </td>
+      </tr>`;
+    });
+
+    tbody.innerHTML = rows.join('');
+  }
+
+  function esc(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  loadData();
+</script>
+</body>
+</html>
