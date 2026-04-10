@@ -387,6 +387,7 @@
   .badge-gold { color: var(--accent); border-color: rgba(212,168,67,0.3); background: rgba(212,168,67,0.08); }
   .badge-green { color: var(--green); border-color: rgba(62,207,142,0.3); background: rgba(62,207,142,0.08); }
   .badge-gray { color: var(--text2); border-color: var(--border2); background: var(--surface2); }
+  .badge-red { color: var(--red); border-color: rgba(240,104,120,0.35); background: rgba(240,104,120,0.08); }
 
   /* Empty / loading state */
   .empty-state {
@@ -488,6 +489,11 @@
         <select id="fCreditType"><option value="">All Types</option></select>
       </div>
 
+      <div class="filter-group">
+        <label>OUTCOME</label>
+        <select id="fOutcome"><option value="">All</option></select>
+      </div>
+
       <div class="filter-group" style="grid-column: span 2;">
         <label>SEARCH (hotel, venue, notes)</label>
         <input type="text" id="fSearch" placeholder="e.g. spa, rooftop bar, Conrad…">
@@ -518,13 +524,14 @@
           <th onclick="sortBy('city')" id="th-city">CITY <span class="sort-arrow">↕</span></th>
           <th onclick="sortBy('credit_amount')" id="th-credit_amount">CREDIT <span class="sort-arrow">↕</span></th>
           <th onclick="sortBy('credit_type')" id="th-credit_type">TYPE <span class="sort-arrow">↕</span></th>
+          <th onclick="sortBy('outcome')" id="th-outcome">OUTCOME <span class="sort-arrow">↕</span></th>
           <th onclick="sortBy('card')" id="th-card">CARD <span class="sort-arrow">↕</span></th>
           <th onclick="sortBy('confidence')" id="th-confidence" class="active">CONFIDENCE <span class="sort-arrow">↓</span></th>
           <th>SOURCE</th>
         </tr>
       </thead>
       <tbody id="tableBody">
-        <tr><td colspan="8"><div class="empty-state"><div class="big">⏳</div>Loading data…</div></td></tr>
+        <tr><td colspan="9"><div class="empty-state"><div class="big">⏳</div>Loading data…</div></td></tr>
       </tbody>
     </table>
   </div>
@@ -591,6 +598,8 @@
   function getSource(r)     { return field(r, 'source'); }
   function getSourceUrl(r)  { return field(r, 'source_url'); }
   function getNotes(r)      { return field(r, 'notes', 'Notes'); }
+  function getOutcome(r)    { return field(r, 'outcome', 'Outcome'); }
+  function getExcerpt(r)    { return field(r, 'source_excerpt', 'sourceExcerpt', 'excerpt'); }
   function getConfidence(r) {
     let v = field(r, 'confidence', 'Confidence', 'confidence_score', 'score');
     if (v === '') return 0;
@@ -604,10 +613,12 @@
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       let json = await res.json();
 
-      // Normalize: accept array or {data: [...]} wrapper
+      // Normalize: array, or { data_points } / { data } from crawler export
       let raw;
       if (Array.isArray(json)) {
         raw = json;
+      } else if (json.data_points && Array.isArray(json.data_points)) {
+        raw = json.data_points;
       } else if (json.data && Array.isArray(json.data)) {
         raw = json.data;
       } else {
@@ -629,7 +640,7 @@
       document.getElementById('statusDot').className = 'status-dot error';
       document.getElementById('statusText').textContent = 'ERROR: ' + e.message;
       document.getElementById('tableBody').innerHTML =
-        `<tr><td colspan="8"><div class="empty-state"><div class="big">⚠️</div>Failed to load: ${e.message}</div></td></tr>`;
+        `<tr><td colspan="9"><div class="empty-state"><div class="big">⚠️</div>Failed to load: ${e.message}</div></td></tr>`;
     }
   }
 
@@ -640,11 +651,13 @@
     const cities = unique(getCity);
     const cards  = unique(getCard);
     const types  = unique(getCreditType);
+    const outs   = unique(r => (getOutcome(r) || '').toLowerCase());
 
     fillStateSelect(states);
     fillSelect('fCity', cities);
     fillSelect('fCard', cards);
     fillSelect('fCreditType', types);
+    fillSelect('fOutcome', outs);
   }
 
   function onStateChange() {
@@ -709,6 +722,7 @@
     const city    = document.getElementById('fCity').value.toLowerCase();
     const card    = document.getElementById('fCard').value.toLowerCase();
     const ctype   = document.getElementById('fCreditType').value.toLowerCase();
+    const oc      = document.getElementById('fOutcome').value.toLowerCase();
     const search  = document.getElementById('fSearch').value.toLowerCase().trim();
 
     filtered = allData.filter(r => {
@@ -716,8 +730,9 @@
       if (city  && getCity(r).toLowerCase() !== city)  return false;
       if (card  && getCard(r).toLowerCase() !== card)  return false;
       if (ctype && getCreditType(r).toLowerCase() !== ctype) return false;
+      if (oc && (getOutcome(r) || '').toLowerCase() !== oc) return false;
       if (search) {
-        const haystack = [getHotel(r), getVenue(r), getNotes(r)].join(' ').toLowerCase();
+        const haystack = [getHotel(r), getVenue(r), getNotes(r), getExcerpt(r), getOutcome(r)].join(' ').toLowerCase();
         if (!haystack.includes(search)) return false;
       }
       return true;
@@ -733,7 +748,7 @@
     document.getElementById('fSearch').addEventListener('keydown', e => {
       if (e.key === 'Enter') applyFilters();
     });
-    ['fCity','fCard','fCreditType'].forEach(id => {
+    ['fCity','fCard','fCreditType','fOutcome'].forEach(id => {
       document.getElementById(id).addEventListener('change', applyFilters);
     });
   });
@@ -742,6 +757,7 @@
     document.getElementById('fSearch').value = '';
     document.getElementById('fCard').value = '';
     document.getElementById('fCreditType').value = '';
+    document.getElementById('fOutcome').value = '';
     document.getElementById('fState').value = '';
     onStateChange(); // repopulates cities then calls applyFilters
   }
@@ -814,7 +830,9 @@
         const n = parseFloat(String(v).replace(/[^0-9.-]/g, ''));
         return isNaN(n) ? 0 : n;
       },
-      credit_type: getCreditType, card: getCard,
+      credit_type: getCreditType,
+      outcome: r => (getOutcome(r) || '').toLowerCase(),
+      card: getCard,
       confidence: getConfidence
     }[sortCol] || (r => '');
 
@@ -860,6 +878,15 @@
     return 'badge-gray';
   }
 
+  function badgeForOutcome(o) {
+    if (!o) return 'badge-gray';
+    const t = String(o).toLowerCase();
+    if (t === 'success') return 'badge-green';
+    if (t === 'failure') return 'badge-red';
+    if (t === 'mixed') return 'badge-gold';
+    return 'badge-gray';
+  }
+
   function formatAmount(val) {
     if (!val && val !== 0) return '—';
     const s = String(val).trim();
@@ -881,7 +908,7 @@
   function renderTable() {
     const tbody = document.getElementById('tableBody');
     if (filtered.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state"><div class="big">🔍</div>No matching records</div></td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state"><div class="big">🔍</div>No matching records</div></td></tr>`;
       return;
     }
 
@@ -892,6 +919,8 @@
       const fillClr = confidenceColor(pct);
       const typeStr = getCreditType(r);
       const badge   = badgeForType(typeStr);
+      const outStr  = getOutcome(r);
+      const obadge  = badgeForOutcome(outStr);
 
       return `<tr>
         <td class="td-venue">${esc(getVenue(r)) || '<span style="color:var(--text3)">—</span>'}</td>
@@ -899,6 +928,7 @@
         <td class="td-city">${esc(getCity(r)) || '<span style="color:var(--text3)">—</span>'}</td>
         <td class="td-amount">${formatAmount(getAmount(r))}</td>
         <td>${typeStr ? `<span class="badge ${badge}">${esc(typeStr)}</span>` : '<span style="color:var(--text3)">—</span>'}</td>
+        <td>${outStr ? `<span class="badge ${obadge}">${esc(outStr)}</span>` : '<span style="color:var(--text3)">—</span>'}</td>
         <td class="td-card">${esc(getCard(r)) || '<span style="color:var(--text3)">—</span>'}</td>
         <td>
           <div class="confidence-bar-wrap">
