@@ -765,7 +765,7 @@
   function applyFilters() {
     const state   = document.getElementById('fState').value;
     const city    = document.getElementById('fCity').value.toLowerCase();
-    const card    = document.getElementById('fCard').value.toLowerCase();
+    const cardSel = document.getElementById('fCard').value;
     const ctype   = document.getElementById('fCreditType').value.toLowerCase();
     const oc      = document.getElementById('fOutcome').value.toLowerCase();
     const search  = document.getElementById('fSearch').value.toLowerCase().trim();
@@ -773,7 +773,7 @@
     filtered = allData.filter(r => {
       if (state && getState(r) !== state) return false;
       if (city  && getCity(r).toLowerCase() !== city)  return false;
-      if (card  && getCard(r) !== card)  return false;
+      if (cardSel && getCard(r) !== cardSel)  return false;
       if (ctype && getCreditType(r).toLowerCase() !== ctype) return false;
       if (oc && (getOutcome(r) || '').toLowerCase() !== oc) return false;
       if (search) {
