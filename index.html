@@ -598,7 +598,18 @@
   function getSource(r)     { return field(r, 'source'); }
   function getSourceUrl(r)  { return field(r, 'source_url'); }
   function getNotes(r)      { return field(r, 'notes', 'Notes'); }
-  function getOutcome(r)    { return field(r, 'outcome', 'Outcome'); }
+  /** Canonical outcome for filters/sort: success | failure | unknown | mixed. JSON null → unknown (legacy sheet rows). */
+  function getOutcome(r) {
+    const raw = r && r.outcome;
+    if (raw == null || String(raw).trim() === '') return 'unknown';
+    let s = String(raw).trim().toLowerCase().replace(/[\s-]+/g, '_');
+    if (['success', 'failure', 'unknown', 'mixed'].includes(s)) return s;
+    return 'unknown';
+  }
+  function outcomeDisplayLabel(canonical) {
+    const labels = { success: 'Posted', failure: 'Failed', unknown: 'Unknown', mixed: 'Mixed' };
+    return labels[canonical] || canonical;
+  }
   function getExcerpt(r)    { return field(r, 'source_excerpt', 'sourceExcerpt', 'excerpt'); }
   function getConfidence(r) {
     let v = field(r, 'confidence', 'Confidence', 'confidence_score', 'score');
@@ -919,8 +930,9 @@
       const fillClr = confidenceColor(pct);
       const typeStr = getCreditType(r);
       const badge   = badgeForType(typeStr);
-      const outStr  = getOutcome(r);
-      const obadge  = badgeForOutcome(outStr);
+      const outCanon = getOutcome(r);
+      const obadge   = badgeForOutcome(outCanon);
+      const outLabel = outcomeDisplayLabel(outCanon);
 
       return `<tr>
         <td class="td-venue">${esc(getVenue(r)) || '<span style="color:var(--text3)">—</span>'}</td>
@@ -928,7 +940,7 @@
         <td class="td-city">${esc(getCity(r)) || '<span style="color:var(--text3)">—</span>'}</td>
         <td class="td-amount">${formatAmount(getAmount(r))}</td>
         <td>${typeStr ? `<span class="badge ${badge}">${esc(typeStr)}</span>` : '<span style="color:var(--text3)">—</span>'}</td>
-        <td>${outStr ? `<span class="badge ${obadge}">${esc(outStr)}</span>` : '<span style="color:var(--text3)">—</span>'}</td>
+        <td><span class="badge ${obadge}" title="${esc(outCanon)}">${esc(outLabel)}</span></td>
         <td class="td-card">${esc(getCard(r)) || '<span style="color:var(--text3)">—</span>'}</td>
         <td>
           <div class="confidence-bar-wrap">
