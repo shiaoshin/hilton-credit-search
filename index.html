@@ -540,8 +540,7 @@
     <strong>YMMV</strong> — Data is crowd-sourced from Reddit, FlyerTalk, and community spreadsheets.
     Accuracy is not guaranteed; always verify with the property directly.
     <br>
-    <strong>Cards:</strong> Hilton Honors Surpass = Amex Hilton Honors Surpass Card · Aspire = Amex Hilton Honors Aspire Card.
-    Amex Business Platinum hotel credits may also apply at participating Hilton properties.
+    <strong>Cards:</strong> Surpass, Aspire, and Hilton Business refer to the Amex Hilton co-brand cards. Amex Business Platinum may use hotel credits at participating Hilton properties.
   </div>
 
 </div>
@@ -572,6 +571,15 @@
   const US_STATE_NAME_MAP = {};
   Object.values(US_STATES).forEach(n => { US_STATE_NAME_MAP[n.toLowerCase()] = n; });
 
+  /** Allowed Amex products for this explorer (display + filters). */
+  const CANONICAL_CARDS = [
+    'Amex Hilton Aspire',
+    'Amex Hilton Surpass',
+    'Amex Hilton Business',
+    'Amex Business Platinum',
+    'Other',
+  ];
+
   function normalizeState(val) {
     if (!val) return '';
     const t = val.trim();
@@ -594,14 +602,39 @@
   function getState(r)      { return normalizeState(field(r, 'state_province', 'state', 'State', 'region', 'Region')); }
   function getAmount(r)     { return field(r, 'credit_amount', 'amount', 'Credit Amount', 'Amount', 'credit'); }
   function getCreditType(r) { return field(r, 'credit_type', 'type', 'Credit Type', 'Type', 'category', 'Category'); }
-  function getCard(r)       { return field(r, 'card_name', 'card', 'Card Name', 'Card', 'card_type', 'amex_card'); }
   function getSource(r)     { return field(r, 'source'); }
   function getSourceUrl(r)  { return field(r, 'source_url'); }
   function getNotes(r)      { return field(r, 'notes', 'Notes'); }
-  /** Canonical outcome for filters/sort: success | failure | unknown | mixed. JSON null → unknown (legacy sheet rows). */
+
+  /**
+   * Map messy exporter/LLM card strings to one of CANONICAL_CARDS.
+   */
+  function getCard(r) {
+    const raw = field(r, 'card_name', 'card', 'Card Name', 'Card', 'card_type', 'amex_card');
+    const t = String(raw).toLowerCase().trim();
+    if (!t) return 'Other';
+
+    if (t.includes('surpass')) return 'Amex Hilton Surpass';
+    if (t.includes('aspire')) return 'Amex Hilton Aspire';
+
+    const likeBizPlat =
+      (t.includes('business') && t.includes('platinum')) ||
+      t.includes('biz plat') ||
+      t.includes('business plat');
+    if (likeBizPlat && !t.includes('hilton')) return 'Amex Business Platinum';
+
+    if (t.includes('hilton') && t.includes('business')) return 'Amex Hilton Business';
+
+    return 'Other';
+  }
+
+  /** Canonical outcome: success | failure | unknown | mixed. Google Sheets rows with no outcome → success (posted). */
   function getOutcome(r) {
     const raw = r && r.outcome;
-    if (raw == null || String(raw).trim() === '') return 'unknown';
+    if (raw == null || String(raw).trim() === '') {
+      if (getSource(r) === 'google_sheets') return 'success';
+      return 'unknown';
+    }
     let s = String(raw).trim().toLowerCase().replace(/[\s-]+/g, '_');
     if (['success', 'failure', 'unknown', 'mixed'].includes(s)) return s;
     return 'unknown';
@@ -636,10 +669,12 @@
         const arr = Object.values(json).find(v => Array.isArray(v));
         raw = arr || [];
       }
-      // Exclude Hilton Honors (no-fee card) — it doesn't offer property credits
+      // Exclude no-fee Hilton Honors (raw name) — no property credits
       allData = raw.filter(r => {
-        const card = getCard(r).toLowerCase();
-        return card !== 'hilton honors';
+        const rawCard = field(r, 'card_name', 'card', 'Card Name', 'Card', 'card_type', 'amex_card').toLowerCase().trim();
+        if (rawCard === 'hilton honors') return false;
+        if (rawCard === 'hilton honors card') return false;
+        return true;
       });
 
       populateDropdowns();
@@ -660,13 +695,12 @@
 
     const states = unique(getState);
     const cities = unique(getCity);
-    const cards  = unique(getCard);
     const types  = unique(getCreditType);
     const outs   = unique(r => (getOutcome(r) || '').toLowerCase());
 
     fillStateSelect(states);
     fillSelect('fCity', cities);
-    fillSelect('fCard', cards);
+    fillSelect('fCard', CANONICAL_CARDS);
     fillSelect('fCreditType', types);
     fillSelect('fOutcome', outs);
   }
@@ -739,7 +773,7 @@
     filtered = allData.filter(r => {
       if (state && getState(r) !== state) return false;
       if (city  && getCity(r).toLowerCase() !== city)  return false;
-      if (card  && getCard(r).toLowerCase() !== card)  return false;
+      if (card  && getCard(r) !== card)  return false;
       if (ctype && getCreditType(r).toLowerCase() !== ctype) return false;
       if (oc && (getOutcome(r) || '').toLowerCase() !== oc) return false;
       if (search) {
