@@ -519,12 +519,12 @@
     <table id="dataTable">
       <thead>
         <tr>
+          <th onclick="sortBy('outcome')" id="th-outcome">OUTCOME <span class="sort-arrow">↕</span></th>
           <th onclick="sortBy('venue')" id="th-venue">VENUE <span class="sort-arrow">↕</span></th>
           <th onclick="sortBy('hotel')" id="th-hotel">HOTEL <span class="sort-arrow">↕</span></th>
           <th onclick="sortBy('city')" id="th-city">CITY <span class="sort-arrow">↕</span></th>
           <th onclick="sortBy('credit_amount')" id="th-credit_amount">CREDIT <span class="sort-arrow">↕</span></th>
           <th onclick="sortBy('credit_type')" id="th-credit_type">TYPE <span class="sort-arrow">↕</span></th>
-          <th onclick="sortBy('outcome')" id="th-outcome">OUTCOME <span class="sort-arrow">↕</span></th>
           <th onclick="sortBy('card')" id="th-card">CARD <span class="sort-arrow">↕</span></th>
           <th onclick="sortBy('confidence')" id="th-confidence" class="active">CONFIDENCE <span class="sort-arrow">↓</span></th>
           <th>SOURCE</th>
@@ -969,12 +969,12 @@
       const outLabel = outcomeDisplayLabel(outCanon);
 
       return `<tr>
+        <td><span class="badge ${obadge}" title="${esc(outCanon)}">${esc(outLabel)}</span></td>
         <td class="td-venue">${esc(getVenue(r)) || '<span style="color:var(--text3)">—</span>'}</td>
         <td class="td-hotel">${esc(getHotel(r)) || '<span style="color:var(--text3)">—</span>'}</td>
         <td class="td-city">${esc(getCity(r)) || '<span style="color:var(--text3)">—</span>'}</td>
         <td class="td-amount">${formatAmount(getAmount(r))}</td>
         <td>${typeStr ? `<span class="badge ${badge}">${esc(typeStr)}</span>` : '<span style="color:var(--text3)">—</span>'}</td>
-        <td><span class="badge ${obadge}" title="${esc(outCanon)}">${esc(outLabel)}</span></td>
         <td class="td-card">${esc(getCard(r)) || '<span style="color:var(--text3)">—</span>'}</td>
         <td>
           <div class="confidence-bar-wrap">
